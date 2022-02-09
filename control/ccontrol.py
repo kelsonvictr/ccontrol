@@ -1,31 +1,39 @@
+import json
 from datetime import datetime
+
+from sqlalchemy import and_
 
 from model.cartao import Cartao
 from model.compra import Compra
+from model.sqlalchemy_start import sqlalchemy_starter
+
+Session, Base, engine = sqlalchemy_starter()
+
+meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro",
+         "Novembro", "Dezembro"]
 
 
-def inicializar_ccs():
-    cartoes = []
-    cartoes.append(Cartao("nubank", 10, 12000))
-    cartoes.append(Cartao("itau", 6, 20000))
+def cadastrar_cartao(nome, vencimento, limite):
+    cartao = Cartao(nome, int(vencimento), float(limite))
+    Base.metadata.create_all(engine)
+    session = Session()
+    session.add(cartao)
+    session.commit()
+    session.close()
 
-    return cartoes
 
-
-def cadastrar_compra():
-    titulo = input("Digite o título da compra:")
-    valor = input("Digite o valor da compra:")
-    qtd_parcelas = input("Digite a qtd de parcelas:")
-    data = input("Digite a data da compra:")
-
-    compra = Compra(titulo, float(valor), int(qtd_parcelas), data)
-
-    return compra
+def cadastrar_compra(cartao_id, titulo, valor, qtd_parcelas):
+    item = Compra(int(cartao_id), titulo, float(valor), int(qtd_parcelas), datetime.today())
+    print(visualizar_parcelas(item))
+    Base.metadata.create_all(engine)
+    session = Session()
+    session.add(item)
+    session.commit()
+    session.close()
 
 
 def visualizar_parcelas(compra):
-    meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro",
-             "Novembro", "Dezembro"]
+    titulo = compra.titulo
     qtd_parcelas = compra.qtd_parcelas
     valor = compra.valor
     valor_parcela = valor / qtd_parcelas
@@ -39,18 +47,32 @@ def visualizar_parcelas(compra):
     """
     for x in range(qtd_parcelas):
         if len(meses) - 1 < mes_atual + x:
-            parcelas.append((ano_atual + 1, meses[mes_da_parcela], valor_parcela))
+            parcelas.append((ano_atual + 1, titulo, meses[mes_da_parcela], valor_parcela))
             mes_da_parcela = mes_da_parcela + 1
             continue
 
-        parcelas.append((ano_atual, meses[mes_atual + x], valor_parcela))
+        parcelas.append((ano_atual, titulo, meses[mes_atual + x], valor_parcela))
 
     return parcelas
 
 
-if __name__ == '__main__':
-    cartoes = inicializar_ccs()
-    compra = cadastrar_compra()
-    print(visualizar_parcelas(compra))
+def carregar_total_por_mes(cartao_id, mes):
+    mes = meses[mes - 1]
+    session = Session()
+    dados = session.query(Compra).filter(Compra.cartao_id == cartao_id)
+    parcelas_do_mes = []
+    for compra in dados:
+        for parcela in visualizar_parcelas(compra):
+            if parcela[2] == mes:
+                parcelas_do_mes.append(
+                    {
+                        "titulo": parcela[1],
+                        "mes": parcela[2],
+                        "valor": parcela[3]
+                    }
+                )
+    #total_do_mes = sum(item['valor'] for item in parcelas_do_mes)
+    #print(f'Compras do mês de {mes}: {parcelas_do_mes} \nTotal: {total_do_mes}')
 
+    return parcelas_do_mes
 
